@@ -57,8 +57,15 @@ namespace ClassGame {
                         game->setUpBoard();
                     }
                 } else {
-                    ImGui::Text("Current Player Number: %d", game->getCurrentPlayer()->playerNumber());
-                    ImGui::Text("Current Board State: %s", game->stateString().c_str());
+                    if (ImGui::Button("End game")) {
+                        game->stopGame();
+                        delete game;
+                        game = nullptr;
+                    }
+                    if(game){
+                        ImGui::Text("Current Player Number: %d", game->getCurrentPlayer()->playerNumber());
+                        ImGui::Text("Current Board State: %s", game->stateString().c_str());
+                    }
                 }
                 ImGui::End();
 
