@@ -63,6 +63,7 @@ add_executable(demo Application.cpp
                           classes/TicTacToe.cpp
                           classes/Checkers.cpp
                           classes/Othello.cpp
+                          classes/Connect4.cpp
                           ${BCKD_FILE}
                           ${MAIN_FILE}
                           ${IMPL_FILE}
