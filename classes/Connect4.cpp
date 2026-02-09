@@ -6,6 +6,8 @@ Logger *logger = Logger::GetInstance();
 const int SQUARE_SIZE = 80;
 
 // trying a bitboard
+uint64_t RED_BOARD;
+uint64_t YELLOW_BOARD;
 
 Connect4::Connect4() : Game() {
     _grid = new Grid(7, 6);
@@ -22,6 +24,10 @@ void Connect4::setUpBoard() {
 
     // Initialize all squares
     _grid->initializeSquares(SQUARE_SIZE, "square.png");
+
+    // init bitboard representations 
+    RED_BOARD = 0;
+    YELLOW_BOARD = 0;
 
     startGame();
 }
@@ -54,6 +60,37 @@ bool inRange(int num, int min, int max){
     return (num >= min && num <= max);
 }
 
+// https://jorrid.com/posts/the-wondrous-world-of-connect-four-bit-boards/
+void Connect4::updateBitboard(int column){
+    /*
+    filled = bitboardPlayerToMove | bitboardOtherPlayer
+    COL0 = 0x3f
+    ROW0 = 0x40201008040201
+    VALID_PLACES = COL0 * ROW0
+    moves = (filled + ROW0) & VALID_PLACES // main part
+    column_mask = COL0 << (column * 9)
+    move = moves & column_mask
+    bitboardPlayerToMove |= move
+    */
+
+    uint64_t &PLAYER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? RED_BOARD : YELLOW_BOARD;
+    uint64_t &OTHER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? YELLOW_BOARD : RED_BOARD;
+
+    // set up masks
+    uint64_t filled = PLAYER_BOARD | OTHER_BOARD;   // all occupied spaces
+    uint64_t col0 = 0x3f;                           // first col
+    uint64_t row0 = 0x40201008040201;               // first row (0, 7, 14, 21, 28, 35, 42)
+    uint64_t open = col0 * row0;                    // all open spaces
+
+    // the most important mask, where can the piece go next?
+    uint64_t VALID = (filled + row0) & open;        // the lowest available space of each column
+    uint64_t to_column = col0 << (column * 9);      // the column where we're moving
+    uint64_t move = VALID & to_column;              // our move
+
+    // update player bitboard
+    PLAYER_BOARD |= move;
+}
+
 bool Connect4::actionForEmptyHolder(BitHolder &holder)
 {
     // TODO: currently, this only works if the player clicks on an empty holder, but i'd like
@@ -73,6 +110,10 @@ bool Connect4::actionForEmptyHolder(BitHolder &holder)
         BitHolder &neighbor = getHolderAt((int)pos.x, (int)pos.y);
         bit->setPosition(convertPixelCoords(pos));
         neighbor.setBit(bit);
+
+        // update player bitboard
+        updateBitboard((int)pos.x); // pass column being dropped into
+
         endTurn();
         return true;
     }   
@@ -88,8 +129,34 @@ bool Connect4::canBitMoveFromTo(Bit& bit, BitHolder& src, BitHolder& dst) {
     return false;
 }
 
-Player* Connect4::checkForWinner() {
+uint64_t and4(uint64_t board, uint64_t stride){
+    uint64_t and2 = board & (board >> stride);
+    return and2 & (and2 >> (2 * stride));
+}
 
+// using bit operations
+// https://jorrid.com/posts/the-wondrous-world-of-connect-four-bit-boards/
+bool bitWin(uint64_t board){
+    uint64_t hStride = 9;
+    uint64_t vStride = 1;
+    uint64_t downDiagStride = hStride - 1;
+    uint64_t upDiagStride = hStride + 1;
+
+    uint64_t h4 = and4(board, hStride);
+    uint64_t v4 = and4(board, vStride);
+    uint64_t dd4 = and4(board, downDiagStride);
+    uint64_t ud4 = and4(board, upDiagStride);
+
+    return (h4|v4|dd4|ud4) != 0;
+}
+
+Player* Connect4::checkForWinner() {
+    if(bitWin(RED_BOARD)){
+        return getPlayerAt(RED_PLAYER);
+    }
+    if(bitWin(YELLOW_BOARD)){
+        return getPlayerAt(YELLOW_PLAYER);
+    }
 
     return nullptr;
 }

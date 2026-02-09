@@ -39,4 +39,7 @@ private:
 
     // Board representation
     Grid*        _grid;
+
+    // helpers
+    void updateBitboard(int column);
 };
