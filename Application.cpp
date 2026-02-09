@@ -66,6 +66,9 @@ namespace ClassGame {
                         game->stopGame();
                         delete game;
                         game = nullptr;
+                        gameOver = false;
+                        gameWinner = -1;
+
                     }
                     if(game){
                         ImGui::Text("Current Player Number: %d", game->getCurrentPlayer()->playerNumber());
