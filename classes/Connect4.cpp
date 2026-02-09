@@ -129,9 +129,13 @@ bool Connect4::canBitMoveFromTo(Bit& bit, BitHolder& src, BitHolder& dst) {
     return false;
 }
 
-uint64_t and4(uint64_t board, uint64_t stride){
+// checks for bits in a line of passed {length}
+bool bitRow(uint64_t board, uint64_t stride, int length){
+    if(length < 2) return true;
+
     uint64_t and2 = board & (board >> stride);
-    return and2 & (and2 >> (2 * stride));
+    uint64_t inRow = and2 & (and2 >> ((length - 2) * stride));
+    return (inRow != 0);
 }
 
 // using bit operations
@@ -142,12 +146,12 @@ bool bitWin(uint64_t board){
     uint64_t downDiagStride = hStride - 1;
     uint64_t upDiagStride = hStride + 1;
 
-    uint64_t h4 = and4(board, hStride);
-    uint64_t v4 = and4(board, vStride);
-    uint64_t dd4 = and4(board, downDiagStride);
-    uint64_t ud4 = and4(board, upDiagStride);
+    uint64_t h4 = bitRow(board, hStride, 4);
+    uint64_t v4 = bitRow(board, vStride, 4);
+    uint64_t dd4 = bitRow(board, downDiagStride, 4);
+    uint64_t ud4 = bitRow(board, upDiagStride, 4);
 
-    return (h4|v4|dd4|ud4) != 0;
+    return (h4 || v4 || dd4 || ud4);
 }
 
 Player* Connect4::checkForWinner() {
