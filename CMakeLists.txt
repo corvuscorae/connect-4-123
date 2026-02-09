@@ -53,6 +53,7 @@ add_executable(demo Application.cpp
                           imgui/imgui_tables.cpp
                           imgui/imgui_widgets.cpp
                           imgui/imgui.cpp
+                          classes/Logger.cpp
                           classes/Bit.cpp
                           classes/BitHolder.cpp
                           classes/Game.cpp
