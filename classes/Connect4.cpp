@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "Connect4.h"
 #include "Logger.h"
 
@@ -28,6 +29,16 @@ void Connect4::setUpBoard() {
     // init bitboard representations 
     RED_BOARD = 0;
     YELLOW_BOARD = 0;
+
+    // TEMP
+    // TODO: let play choose
+    if (gameHasAI()) {
+        setAIPlayer(AI_PLAYER);
+        AI_COLOR = YELLOW_BOARD;
+        AI_BOARD = &YELLOW_BOARD;
+        HUMAN_COLOR = RED_PIECE;
+        HUMAN_BOARD = &RED_BOARD;
+    }
 
     startGame();
 }
@@ -62,17 +73,6 @@ bool inRange(int num, int min, int max){
 
 // https://jorrid.com/posts/the-wondrous-world-of-connect-four-bit-boards/
 void Connect4::updateBitboard(int column){
-    /*
-    filled = bitboardPlayerToMove | bitboardOtherPlayer
-    COL0 = 0x3f
-    ROW0 = 0x40201008040201
-    VALID_PLACES = COL0 * ROW0
-    moves = (filled + ROW0) & VALID_PLACES // main part
-    column_mask = COL0 << (column * 9)
-    move = moves & column_mask
-    bitboardPlayerToMove |= move
-    */
-
     uint64_t &PLAYER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? RED_BOARD : YELLOW_BOARD;
     uint64_t &OTHER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? YELLOW_BOARD : RED_BOARD;
 
@@ -130,7 +130,7 @@ bool Connect4::canBitMoveFromTo(Bit& bit, BitHolder& src, BitHolder& dst) {
 }
 
 // checks for bits in a line of passed {length}
-bool bitRow(uint64_t board, uint64_t stride, int length){
+bool Connect4::bitRow(uint64_t board, uint64_t stride, int length){
     if(length < 2) return true;
 
     uint64_t and2 = board & (board >> stride);
@@ -138,18 +138,26 @@ bool bitRow(uint64_t board, uint64_t stride, int length){
     return (inRow != 0);
 }
 
+// checks for any stride of length {length}
+bool Connect4::bitRow(uint64_t board, int length){
+    if(length < 2) return true;
+
+    for(size_t i = 0; i < 4; i++){
+        uint64_t stride = ALL_STRIDES[i];
+        uint64_t and2 = board & (board >> stride);
+        uint64_t inRow = and2 & (and2 >> ((length - 2) * stride));
+        if (inRow != 0) return true;
+    }
+    return false;
+}
+
 // using bit operations
 // https://jorrid.com/posts/the-wondrous-world-of-connect-four-bit-boards/
-bool bitWin(uint64_t board){
-    uint64_t hStride = 9;
-    uint64_t vStride = 1;
-    uint64_t downDiagStride = hStride - 1;
-    uint64_t upDiagStride = hStride + 1;
-
-    uint64_t h4 = bitRow(board, hStride, 4);
-    uint64_t v4 = bitRow(board, vStride, 4);
-    uint64_t dd4 = bitRow(board, downDiagStride, 4);
-    uint64_t ud4 = bitRow(board, upDiagStride, 4);
+bool Connect4::bitWin(uint64_t board){
+    uint64_t h4 = bitRow(board, HORIZONTAL_STRIDE, 4);
+    uint64_t v4 = bitRow(board, VERTICAL_STRIDE, 4);
+    uint64_t dd4 = bitRow(board, DOWNDIAG_STRIDE, 4);
+    uint64_t ud4 = bitRow(board, UPDIAG_STRIDE, 4);
 
     return (h4 || v4 || dd4 || ud4);
 }
@@ -176,7 +184,7 @@ void Connect4::stopGame() {
 }
 
 std::string Connect4::initialStateString() {
-    return "------------------------------------------";
+    return "000000000000000000000000000000000000000000";
 }
 
 std::string Connect4::stateString() {
@@ -192,5 +200,163 @@ void Connect4::setStateString(const std::string &s) {
     // TODO
 }
 
-void Connect4::updateAI() {}
+//
+// this is the function that will be called by the AI
+//
+void Connect4::updateAI()
+{
+    // don't try to play if game over
+    if (checkForDraw() || checkForWinner())
+    {
+        return;
+    }
+    
+    // get current board state
+    std::string state = stateString();
 
+    // find next move
+    int move = getNextMove(state);
+
+    if(move != -1){
+        actionForEmptyHolder(getHolderAt(move, 0));
+    }
+    else {
+        logger->Log("AI turn failed: move not found", logger->ERROR, logger->GAME);
+    }
+}
+
+void undoMove(uint64_t &board, int column) {
+    // find topmost piece in column and remove it
+    uint64_t col0 = 0x3f;
+    uint64_t columnMask = col0 << (column * 9);
+    uint64_t piecesInColumn = board & columnMask;
+    
+    if (piecesInColumn == 0) return; // column empty
+    
+    // find highest bit set in column (piece last placed)
+    // TODO: theres gotta be a bette rway
+    uint64_t highestPiece = piecesInColumn;
+    highestPiece |= highestPiece >> 1;
+    highestPiece |= highestPiece >> 2;
+    highestPiece |= highestPiece >> 4;
+    highestPiece = highestPiece ^ (highestPiece >> 1);
+    
+    // yeet it
+    board &= ~highestPiece;
+}
+
+int Connect4::getNextMove(std::string &state){
+    int bestMove = -1000;
+    int bestColumn = -1;
+
+    uint64_t red_backup = RED_BOARD;
+    uint64_t yellow_backup = YELLOW_BOARD;
+
+    for(int i = 0; i < _gameOptions.rowX; i++){
+        updateBitboard(i);
+
+        int score = -negamax(0, -WINNING_SCORE * 100, WINNING_SCORE * 100, false);
+    
+        if(score > bestMove){
+            bestMove = score;
+            bestColumn = i;
+        }
+
+        RED_BOARD = red_backup;
+        YELLOW_BOARD = yellow_backup;
+    }
+
+    return bestColumn;
+}
+
+bool Connect4::aiCheckForFullBoard(std::string &state){
+    if(state.find(NULL_PLAYER) == std::string::npos){ 
+        // no empties found, board is full
+        return true;
+    }
+    return false;
+}
+
+// TODO: replace with eval fucntion that score different states
+int Connect4::eval(uint64_t myBoard, uint64_t oppBoard){
+    int score = 0;
+
+    // my advantage
+    if(bitRow(myBoard, 4) && !bitRow(oppBoard, 2)){
+        score += WINNING_SCORE; // 4 in a row = win!
+    } 
+    else if(bitRow(myBoard, 3) && !bitRow(oppBoard, 2)){
+        score += 100;   // 3 in a row = strong advantage
+    }
+    else if(bitRow(myBoard, 2) && !bitRow(oppBoard, 2)){
+        score += 10;    
+    }
+
+    // opp advantage
+    if(bitRow(oppBoard, 4) && !bitRow(myBoard, 2)){
+        score -= WINNING_SCORE;
+    } 
+    else if(bitRow(oppBoard, 3) && !bitRow(myBoard, 2)){
+        score -= 100;
+    }
+    else if(bitRow(oppBoard, 2) && !bitRow(myBoard, 2)){
+        score -= 10;
+    }
+
+    return score;
+}
+
+int Connect4::negamax(int depth, int alpha, int beta, int player){
+    uint64_t &myBoard = player == HUMAN_PLAYER ? *HUMAN_BOARD : *AI_BOARD;
+    uint64_t &oppBoard = player == HUMAN_PLAYER? *AI_BOARD : *HUMAN_BOARD;
+
+    // check terminals
+    if(bitWin(myBoard)) return WINNING_SCORE - depth;
+    if(bitWin(oppBoard)) return -WINNING_SCORE + depth;
+    if(depth >= MAX_DEPTH) return eval(myBoard, oppBoard);
+
+    // check for draw
+    // https://gekomad.github.io/Cinnamon/BitboardCalculator/ 
+    if ((myBoard | oppBoard) == 0xfc7e3f1f8fc7e3fULL) { 
+        return 0; // draw score
+    }
+
+    int bestValue = -WINNING_SCORE * 100;
+
+    uint64_t red_backup = RED_BOARD;
+    uint64_t yellow_backup = YELLOW_BOARD;
+
+    for(int i = 0; i < _gameOptions.rowX; i++){
+        updateBitboard(i);
+
+        int newValue = -negamax(depth + 1, -beta, -alpha, -player);
+    
+        RED_BOARD = red_backup;
+        YELLOW_BOARD = yellow_backup;
+
+        bestValue = std::max(bestValue, newValue);
+        alpha = std::max(alpha, newValue);
+
+        if(alpha >= beta) break;    // prune
+    }
+
+    return bestValue;
+}
+
+// // legacy AI (very bad, only picks at random from available holders)
+// int Connect4::randomAI(std::string &state){
+//     // find all empty spaces
+//     std::vector<int> empty;
+//     for (int i = 0; i < state.length(); i++)
+//     {
+//         if (state[i] == NULL_PLAYER)
+//         {
+//             empty.push_back(i);
+//         }
+//     }
+
+//     // pick one randomly
+//     std::srand(std::time(0)); // seed rand()
+//     int max = empty.size();
+//     return empty[std::rand() % max];
+// }

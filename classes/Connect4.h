@@ -21,8 +21,12 @@ public:
 
     // AI methods
     void        updateAI() override;
-    bool        gameHasAI() override { return false; } // Set to true when AI is implemented
-    Grid* getGrid() override { return _grid; }
+    bool        gameHasAI() override { return true; } // Set to true when AI is implemented
+    Grid*       getGrid() override { return _grid; }
+    int         getNextMove(std::string &state);
+    int         negamax(int depth, int alpha, int beta, int player);
+    bool        aiCheckForFullBoard(std::string &state);
+    int         eval(uint64_t myBoard, uint64_t oppBoard);
 
 private:
     // Constants for piece types
@@ -33,6 +37,23 @@ private:
     // Player constants
     static const int RED_PLAYER = 0;
     static const int YELLOW_PLAYER = 1;
+    static const char NULL_PLAYER = '0';
+    // define these in class so player can choose which is AI
+    int AI_COLOR;
+    uint64_t *AI_BOARD;
+    int HUMAN_COLOR;
+    uint64_t *HUMAN_BOARD;
+
+    // Constants for stride types (for checking n-in-a-row)
+    const uint64_t HORIZONTAL_STRIDE = 9;
+    const uint64_t VERTICAL_STRIDE = 1;
+    const uint64_t DOWNDIAG_STRIDE = HORIZONTAL_STRIDE - 1;
+    const uint64_t UPDIAG_STRIDE = HORIZONTAL_STRIDE + 1;
+    const uint64_t ALL_STRIDES[4] = {HORIZONTAL_STRIDE, VERTICAL_STRIDE, DOWNDIAG_STRIDE, UPDIAG_STRIDE};
+  
+    // consts for eval function stuff
+    const int MAX_DEPTH = 4; // max search depth
+    const int WINNING_SCORE = 10000;
 
     // Helper methods
     Bit*        createPiece(int pieceType);
@@ -42,4 +63,7 @@ private:
 
     // helpers
     void updateBitboard(int column);
+    bool bitRow(uint64_t board, uint64_t stride, int length);
+    bool bitRow(uint64_t board, int length);    // checks for a {length} row in any dir
+    bool bitWin(uint64_t board);
 };
