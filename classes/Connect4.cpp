@@ -76,6 +76,13 @@ void Connect4::updateBitboard(int column){
     uint64_t &PLAYER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? RED_BOARD : YELLOW_BOARD;
     uint64_t &OTHER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? YELLOW_BOARD : RED_BOARD;
 
+    updateBitboard(column, PLAYER_BOARD, OTHER_BOARD);
+}
+
+void Connect4::updateBitboard(int column, uint64_t &PLAYER_BOARD, uint64_t &OTHER_BOARD){
+    // uint64_t &PLAYER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? RED_BOARD : YELLOW_BOARD;
+    // uint64_t &OTHER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? YELLOW_BOARD : RED_BOARD;
+
     // set up masks
     uint64_t filled = PLAYER_BOARD | OTHER_BOARD;   // all occupied spaces
     uint64_t col0 = 0x3f;                           // first col
@@ -225,26 +232,6 @@ void Connect4::updateAI()
     }
 }
 
-void undoMove(uint64_t &board, int column) {
-    // find topmost piece in column and remove it
-    uint64_t col0 = 0x3f;
-    uint64_t columnMask = col0 << (column * 9);
-    uint64_t piecesInColumn = board & columnMask;
-    
-    if (piecesInColumn == 0) return; // column empty
-    
-    // find highest bit set in column (piece last placed)
-    // TODO: theres gotta be a bette rway
-    uint64_t highestPiece = piecesInColumn;
-    highestPiece |= highestPiece >> 1;
-    highestPiece |= highestPiece >> 2;
-    highestPiece |= highestPiece >> 4;
-    highestPiece = highestPiece ^ (highestPiece >> 1);
-    
-    // yeet it
-    board &= ~highestPiece;
-}
-
 int Connect4::getNextMove(std::string &state){
     int bestMove = -1000;
     int bestColumn = -1;
@@ -255,9 +242,9 @@ int Connect4::getNextMove(std::string &state){
     for(int i = 0; i < _gameOptions.rowX; i++){
         updateBitboard(i);
 
-        int score = -negamax(0, -WINNING_SCORE * 100, WINNING_SCORE * 100, false);
+        int score = -negamax(0, -WINNING_SCORE * 100, WINNING_SCORE * 100, HUMAN_PLAYER);
     
-        if(score > bestMove){
+        if(score >= bestMove){
             bestMove = score;
             bestColumn = i;
         }
@@ -270,6 +257,10 @@ int Connect4::getNextMove(std::string &state){
 }
 
 bool Connect4::aiCheckForFullBoard(std::string &state){
+    if(state == ""){
+        state = stateString();
+    }
+
     if(state.find(NULL_PLAYER) == std::string::npos){ 
         // no empties found, board is full
         return true;
@@ -282,24 +273,24 @@ int Connect4::eval(uint64_t myBoard, uint64_t oppBoard){
     int score = 0;
 
     // my advantage
-    if(bitRow(myBoard, 4) && !bitRow(oppBoard, 2)){
+    if(bitRow(myBoard, 4)){
         score += WINNING_SCORE; // 4 in a row = win!
     } 
-    else if(bitRow(myBoard, 3) && !bitRow(oppBoard, 2)){
+    else if(bitRow(myBoard, 3)){
         score += 100;   // 3 in a row = strong advantage
     }
-    else if(bitRow(myBoard, 2) && !bitRow(oppBoard, 2)){
+    else if(bitRow(myBoard, 2)){
         score += 10;    
     }
 
     // opp advantage
-    if(bitRow(oppBoard, 4) && !bitRow(myBoard, 2)){
+    if(bitRow(oppBoard, 4)){
         score -= WINNING_SCORE;
     } 
-    else if(bitRow(oppBoard, 3) && !bitRow(myBoard, 2)){
+    else if(bitRow(oppBoard, 3)){
         score -= 100;
     }
-    else if(bitRow(oppBoard, 2) && !bitRow(myBoard, 2)){
+    else if(bitRow(oppBoard, 2)){
         score -= 10;
     }
 
@@ -311,23 +302,26 @@ int Connect4::negamax(int depth, int alpha, int beta, int player){
     uint64_t &oppBoard = player == HUMAN_PLAYER? *AI_BOARD : *HUMAN_BOARD;
 
     // check terminals
-    if(bitWin(myBoard)) return WINNING_SCORE - depth;
-    if(bitWin(oppBoard)) return -WINNING_SCORE + depth;
+    if(bitWin(myBoard)) return WINNING_SCORE / depth;
+    if(bitWin(oppBoard)) return -(WINNING_SCORE / depth);
     if(depth >= MAX_DEPTH) return eval(myBoard, oppBoard);
 
     // check for draw
-    // https://gekomad.github.io/Cinnamon/BitboardCalculator/ 
-    if ((myBoard | oppBoard) == 0xfc7e3f1f8fc7e3fULL) { 
-        return 0; // draw score
+    std::string state = stateString();
+    if (aiCheckForFullBoard(state)) { 
+        return eval(myBoard, oppBoard); 
     }
 
     int bestValue = -WINNING_SCORE * 100;
+
+    uint64_t &PLAYER_BOARD = (player == AI_PLAYER) ? *AI_BOARD : *HUMAN_BOARD;
+    uint64_t &OTHER_BOARD = (player == AI_PLAYER) ? *HUMAN_BOARD : *AI_BOARD;
 
     uint64_t red_backup = RED_BOARD;
     uint64_t yellow_backup = YELLOW_BOARD;
 
     for(int i = 0; i < _gameOptions.rowX; i++){
-        updateBitboard(i);
+        updateBitboard(i, PLAYER_BOARD, OTHER_BOARD);
 
         int newValue = -negamax(depth + 1, -beta, -alpha, -player);
     
@@ -337,7 +331,7 @@ int Connect4::negamax(int depth, int alpha, int beta, int player){
         bestValue = std::max(bestValue, newValue);
         alpha = std::max(alpha, newValue);
 
-        if(alpha >= beta) break;    // prune
+        if(newValue >= beta) return newValue;    // prune
     }
 
     return bestValue;
