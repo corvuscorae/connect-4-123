@@ -342,7 +342,7 @@ int Connect4::negamax(int depth, int alpha, int beta, int player){
 
     // check for draw
     if (bitCheckForFullBoard(myBoard | oppBoard)) { 
-        return eval(myBoard, oppBoard); 
+        return 0;
     }
 
     int bestValue = -WINNING_SCORE * 100;
@@ -354,7 +354,8 @@ int Connect4::negamax(int depth, int alpha, int beta, int player){
     uint64_t yellow_backup = YELLOW_BOARD;
 
     for(int i = 0; i < _gameOptions.rowX; i++){
-        if(!updateBitboard(i, PLAYER_BOARD, OTHER_BOARD)){ // no available spaces in this column, move on
+        int col = MOVE_ORDER[i];
+        if(!updateBitboard(col, PLAYER_BOARD, OTHER_BOARD)){ // no available spaces in this column, move on
             continue;
         }
 

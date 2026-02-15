@@ -52,8 +52,9 @@ private:
     const uint64_t ALL_STRIDES[4] = {HORIZONTAL_STRIDE, VERTICAL_STRIDE, DOWNDIAG_STRIDE, UPDIAG_STRIDE};
   
     // consts for eval function stuff
-    const int MAX_DEPTH = 8; // max search depth
+    const int MAX_DEPTH = 10; // max search depth
     const int WINNING_SCORE = 10000;
+    const int MOVE_ORDER[7] = {3, 2, 4, 1, 5, 0, 6};
 
     // Helper methods
     Bit*        createPiece(int pieceType);
