@@ -34,7 +34,7 @@ void Connect4::setUpBoard() {
     // TODO: let play choose
     if (gameHasAI()) {
         setAIPlayer(AI_PLAYER);
-        AI_COLOR = YELLOW_BOARD;
+        AI_COLOR = YELLOW_PIECE;
         AI_BOARD = &YELLOW_BOARD;
         HUMAN_COLOR = RED_PIECE;
         HUMAN_BOARD = &RED_BOARD;
@@ -72,20 +72,17 @@ bool inRange(int num, int min, int max){
 }
 
 // https://jorrid.com/posts/the-wondrous-world-of-connect-four-bit-boards/
-void Connect4::updateBitboard(int column){
+bool Connect4::updateBitboard(int column){
     uint64_t &PLAYER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? RED_BOARD : YELLOW_BOARD;
     uint64_t &OTHER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? YELLOW_BOARD : RED_BOARD;
 
-    updateBitboard(column, PLAYER_BOARD, OTHER_BOARD);
+    return updateBitboard(column, PLAYER_BOARD, OTHER_BOARD);
 }
 
-void Connect4::updateBitboard(int column, uint64_t &PLAYER_BOARD, uint64_t &OTHER_BOARD){
-    // uint64_t &PLAYER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? RED_BOARD : YELLOW_BOARD;
-    // uint64_t &OTHER_BOARD = (getCurrentPlayer()->playerNumber() == RED_PLAYER) ? YELLOW_BOARD : RED_BOARD;
-
+bool Connect4::updateBitboard(int column, uint64_t &PLAYER_BOARD, uint64_t &OTHER_BOARD){
     // set up masks
     uint64_t filled = PLAYER_BOARD | OTHER_BOARD;   // all occupied spaces
-    uint64_t col0 = 0x3f;                           // first col
+    uint64_t col0 = 0x3f;                           // first col (0, 1, 2, 3, 4, 5)
     uint64_t row0 = 0x40201008040201;               // first row (0, 7, 14, 21, 28, 35, 42)
     uint64_t open = col0 * row0;                    // all open spaces
 
@@ -94,8 +91,13 @@ void Connect4::updateBitboard(int column, uint64_t &PLAYER_BOARD, uint64_t &OTHE
     uint64_t to_column = col0 << (column * 9);      // the column where we're moving
     uint64_t move = VALID & to_column;              // our move
 
+    if(move == 0){
+        return false;   // no valid moves in this column
+    }
+
     // update player bitboard
     PLAYER_BOARD |= move;
+    return true;
 }
 
 bool Connect4::actionForEmptyHolder(BitHolder &holder)
@@ -108,18 +110,19 @@ bool Connect4::actionForEmptyHolder(BitHolder &holder)
     Bit *bit = createPiece(getCurrentPlayer()->playerNumber() == RED_PLAYER ? RED_PIECE : YELLOW_PIECE);
     if (bit) {
         ImVec2 pos = convertToGridCoords(holder.getPosition());
-        
+        if(!updateBitboard((int)pos.x)){ // pass column being dropped into
+            return false;
+        } 
+
         // find lowest empty neighbor in this column
-        while(inRange(pos.y + dir, 0, _gameOptions.rowY - 1) && getHolderAt((int)pos.x, (int)pos.y + 1).empty()){
+        while(inRange((int)pos.y + dir, 0, _gameOptions.rowY - 1) && getHolderAt((int)pos.x, (int)pos.y + 1).empty()){
             pos.y += dir;
         }
 
+        // update player bitboard
         BitHolder &neighbor = getHolderAt((int)pos.x, (int)pos.y);
         bit->setPosition(convertPixelCoords(pos));
         neighbor.setBit(bit);
-
-        // update player bitboard
-        updateBitboard((int)pos.x); // pass column being dropped into
 
         endTurn();
         return true;
@@ -181,7 +184,7 @@ Player* Connect4::checkForWinner() {
 }
 
 bool Connect4::checkForDraw() {
-    return false;
+    return bitCheckForFullBoard(RED_BOARD | YELLOW_BOARD);
 }
 
 void Connect4::stopGame() {
@@ -240,7 +243,9 @@ int Connect4::getNextMove(std::string &state){
     uint64_t yellow_backup = YELLOW_BOARD;
 
     for(int i = 0; i < _gameOptions.rowX; i++){
-        updateBitboard(i);
+        if(!updateBitboard(i)){ // no available spaces in this column, move on
+            continue;
+        }
 
         int score = -negamax(0, -WINNING_SCORE * 100, WINNING_SCORE * 100, HUMAN_PLAYER);
     
@@ -321,7 +326,9 @@ int Connect4::negamax(int depth, int alpha, int beta, int player){
     uint64_t yellow_backup = YELLOW_BOARD;
 
     for(int i = 0; i < _gameOptions.rowX; i++){
-        updateBitboard(i, PLAYER_BOARD, OTHER_BOARD);
+        if(!updateBitboard(i, PLAYER_BOARD, OTHER_BOARD)){ // no available spaces in this column, move on
+            continue;
+        }
 
         int newValue = -negamax(depth + 1, -beta, -alpha, -player);
     
