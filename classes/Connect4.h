@@ -25,7 +25,7 @@ public:
     Grid*       getGrid() override { return _grid; }
     int         getNextMove(std::string &state);
     int         negamax(int depth, int alpha, int beta, int player);
-    bool        aiCheckForFullBoard(std::string &state);
+    bool        bitCheckForFullBoard(uint64_t state);
     int         eval(uint64_t myBoard, uint64_t oppBoard);
 
 private:
@@ -52,7 +52,7 @@ private:
     const uint64_t ALL_STRIDES[4] = {HORIZONTAL_STRIDE, VERTICAL_STRIDE, DOWNDIAG_STRIDE, UPDIAG_STRIDE};
   
     // consts for eval function stuff
-    const int MAX_DEPTH = 6; // max search depth
+    const int MAX_DEPTH = 8; // max search depth
     const int WINNING_SCORE = 10000;
 
     // Helper methods
@@ -62,8 +62,8 @@ private:
     Grid*        _grid;
 
     // helpers
-    void updateBitboard(int column, uint64_t &PLAYER_BOARD, uint64_t &OTHER_BOARD);
-    void updateBitboard(int column);
+    bool updateBitboard(int column, uint64_t &PLAYER_BOARD, uint64_t &OTHER_BOARD);
+    bool updateBitboard(int column);
     bool bitRow(uint64_t board, uint64_t stride, int length);
     bool bitRow(uint64_t board, int length);    // checks for a {length} row in any dir
     bool bitWin(uint64_t board);

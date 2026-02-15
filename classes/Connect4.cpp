@@ -15,6 +15,7 @@ Connect4::Connect4() : Game() {
 }
 
 Connect4::~Connect4() {
+    stopGame();
     delete _grid;
 }
 
@@ -232,6 +233,9 @@ void Connect4::updateAI()
     }
     else {
         logger->Log("AI turn failed: move not found", logger->ERROR, logger->GAME);
+        // moving randomly in this case...
+        move = (int)(std::rand() % _gameOptions.rowX);
+        actionForEmptyHolder(getHolderAt(move, 0));
     }
 }
 
@@ -247,7 +251,10 @@ int Connect4::getNextMove(std::string &state){
             continue;
         }
 
-        int score = -negamax(0, -WINNING_SCORE * 100, WINNING_SCORE * 100, HUMAN_PLAYER);
+        int score = -negamax(0, -WINNING_SCORE, WINNING_SCORE, HUMAN_PLAYER);
+
+        // int dist_from_middle = 1 + std::abs(_gameOptions.rowX / 2 - i);
+        // score += 1 / dist_from_middle; // prioritize taking control of the center   
     
         if(score >= bestMove){
             bestMove = score;
@@ -261,42 +268,64 @@ int Connect4::getNextMove(std::string &state){
     return bestColumn;
 }
 
-bool Connect4::aiCheckForFullBoard(std::string &state){
-    if(state == ""){
-        state = stateString();
-    }
+bool Connect4::bitCheckForFullBoard(uint64_t state){
+    uint64_t col0 = 0x3f;                           // first col (0, 1, 2, 3, 4, 5)
+    uint64_t row0 = 0x40201008040201;               // first row (0, 7, 14, 21, 28, 35, 42)
+    uint64_t all = col0 * row0;                    // all spaces
 
-    if(state.find(NULL_PLAYER) == std::string::npos){ 
-        // no empties found, board is full
+    if(state == all){ 
         return true;
     }
     return false;
 }
 
+int countBits(uint64_t board){
+    int count = 0;
+    while (board) {
+        board &= (board - 1);
+        count++;
+    }
+    return count;
+}
+
 // TODO: replace with eval fucntion that score different states
 int Connect4::eval(uint64_t myBoard, uint64_t oppBoard){
     int score = 0;
-
+    
     // my advantage
-    if(bitRow(myBoard, 4)){
-        score += WINNING_SCORE; // 4 in a row = win!
-    } 
-    else if(bitRow(myBoard, 3)){
-        score += 100;   // 3 in a row = strong advantage
+    // score center bits
+    uint64_t center = 0x3f << (2 * 9);
+    score += countBits(center & myBoard) * 3;
+    center = 0x3f << (3 * 9);   
+    score += countBits(center & myBoard) * 5;    // true center
+    center = 0x3f << (4 * 9);
+    score += countBits(center & myBoard) * 3;
+
+    // if(bitRow(myBoard, 4)){
+        // score += WINNING_SCORE * 10; // 4 in a row = win!
+    // } 
+    if(bitRow(myBoard, 3)){
+        score += 1000;   // 3 in a row = strong advantage
     }
     else if(bitRow(myBoard, 2)){
         score += 10;    
     }
+    else {
+        score -= 100;   // punish isolated pieces
+    }
 
     // opp advantage
-    if(bitRow(oppBoard, 4)){
-        score -= WINNING_SCORE;
-    } 
-    else if(bitRow(oppBoard, 3)){
-        score -= 100;
+    // if(bitRow(oppBoard, 4)){
+        // score -= WINNING_SCORE * 10;
+    // } 
+    if(bitRow(oppBoard, 3)){
+        score -= 2000;
     }
     else if(bitRow(oppBoard, 2)){
-        score -= 10;
+        score -= 100;
+    }
+    else {
+        score += 10;
     }
 
     return score;
@@ -307,13 +336,12 @@ int Connect4::negamax(int depth, int alpha, int beta, int player){
     uint64_t &oppBoard = player == HUMAN_PLAYER? *AI_BOARD : *HUMAN_BOARD;
 
     // check terminals
-    if(bitWin(myBoard)) return WINNING_SCORE / depth;
-    if(bitWin(oppBoard)) return -(WINNING_SCORE / depth);
+    if(bitWin(myBoard)) return WINNING_SCORE / (1 + depth);
+    if(bitWin(oppBoard)) return -(WINNING_SCORE / (1 + depth));
     if(depth >= MAX_DEPTH) return eval(myBoard, oppBoard);
 
     // check for draw
-    std::string state = stateString();
-    if (aiCheckForFullBoard(state)) { 
+    if (bitCheckForFullBoard(myBoard | oppBoard)) { 
         return eval(myBoard, oppBoard); 
     }
 
@@ -338,7 +366,7 @@ int Connect4::negamax(int depth, int alpha, int beta, int player){
         bestValue = std::max(bestValue, newValue);
         alpha = std::max(alpha, newValue);
 
-        if(newValue >= beta) return newValue;    // prune
+        if(alpha >= beta) return bestValue;    // prune
     }
 
     return bestValue;
