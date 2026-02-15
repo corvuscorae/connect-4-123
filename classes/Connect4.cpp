@@ -12,6 +12,7 @@ uint64_t YELLOW_BOARD;
 
 Connect4::Connect4() : Game() {
     _grid = new Grid(7, 6);
+    setNumberOfPlayers(2);
 }
 
 Connect4::~Connect4() {
@@ -20,7 +21,6 @@ Connect4::~Connect4() {
 }
 
 void Connect4::setUpBoard() {
-    setNumberOfPlayers(2);
     _gameOptions.rowX = 7;
     _gameOptions.rowY = 6;
 
@@ -34,11 +34,10 @@ void Connect4::setUpBoard() {
     // TEMP
     // TODO: let play choose
     if (gameHasAI()) {
-        setAIPlayer(AI_PLAYER);
-        AI_COLOR = YELLOW_PIECE;
-        AI_BOARD = &YELLOW_BOARD;
-        HUMAN_COLOR = RED_PIECE;
-        HUMAN_BOARD = &RED_BOARD;
+        AI_COLOR = (_gameOptions.AIPlayer == 0) ? RED_PIECE : YELLOW_PIECE;
+        AI_BOARD = (_gameOptions.AIPlayer == 0) ? &RED_BOARD : &YELLOW_BOARD;
+        HUMAN_COLOR = (_gameOptions.AIPlayer == 1) ? RED_PIECE : YELLOW_PIECE;
+        HUMAN_BOARD = (_gameOptions.AIPlayer == 1) ? &RED_BOARD : &YELLOW_BOARD;
     }
 
     startGame();

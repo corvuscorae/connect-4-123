@@ -21,7 +21,7 @@ public:
 
     // AI methods
     void        updateAI() override;
-    bool        gameHasAI() override { return true; } // Set to true when AI is implemented
+    bool        gameHasAI() override { return _gameOptions.AIPlayer; } // Set to true when AI is implemented
     Grid*       getGrid() override { return _grid; }
     int         getNextMove(std::string &state);
     int         negamax(int depth, int alpha, int beta, int player);
@@ -29,6 +29,8 @@ public:
     int         eval(uint64_t myBoard, uint64_t oppBoard);
 
 private:
+    bool hasAI = false;
+
     // Constants for piece types
     static const int EMPTY = 0;
     static const int RED_PIECE = 1;

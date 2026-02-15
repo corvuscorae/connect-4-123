@@ -58,10 +58,33 @@ namespace ClassGame {
                         game->setUpBoard();
                     }
                     if (ImGui::Button("Start Connect 4")) {
-                        game = new Connect4();
-                        game->setUpBoard();
+                        ImGui::OpenPopup("Connect4Options");
                     }
-                } else {
+                    
+                    // popup for connect 4 options
+                    if (ImGui::BeginPopup("Connect4Options")) {
+                        if (ImGui::Button("Human vs. Human")) {
+                            game = new Connect4();
+                            game->setUpBoard();
+                            ImGui::CloseCurrentPopup();
+                        }
+                        if (ImGui::Button("Human vs. AI")) {
+                            game = new Connect4();
+                            game->setAIPlayer(1);
+                            game->setUpBoard();
+                            ImGui::CloseCurrentPopup();
+                        }
+                        if (ImGui::Button("AI vs. Human")) {
+                            game = new Connect4();
+                            game->setAIPlayer(0);
+                            game->setUpBoard();
+                            ImGui::CloseCurrentPopup();
+                        }
+                        ImGui::EndPopup();
+                    }
+                }
+                
+                else {
                     if (ImGui::Button("End game")) {
                         game->stopGame();
                         delete game;
