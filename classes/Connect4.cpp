@@ -244,20 +244,19 @@ int Connect4::getNextMove(std::string &state){
 
     uint64_t red_backup = RED_BOARD;
     uint64_t yellow_backup = YELLOW_BOARD;
+    int currentPlayer = (getCurrentPlayer()->playerNumber() == _gameOptions.AIPlayer) ? AI_PLAYER : HUMAN_PLAYER;
 
     for(int i = 0; i < _gameOptions.rowX; i++){
-        if(!updateBitboard(i)){ // no available spaces in this column, move on
+        int col = MOVE_ORDER[i];
+        if(!updateBitboard(col)){ // no available spaces in this column, move on
             continue;
         }
 
-        int score = -negamax(0, -WINNING_SCORE, WINNING_SCORE, HUMAN_PLAYER);
+        int score = -negamax(0, -WINNING_SCORE, WINNING_SCORE, -currentPlayer);
 
-        // int dist_from_middle = 1 + std::abs(_gameOptions.rowX / 2 - i);
-        // score += 1 / dist_from_middle; // prioritize taking control of the center   
-    
-        if(score >= bestMove){
+        if(score > bestMove){
             bestMove = score;
-            bestColumn = i;
+            bestColumn = col;
         }
 
         RED_BOARD = red_backup;
