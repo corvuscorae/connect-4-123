@@ -100,29 +100,38 @@ bool Connect4::updateBitboard(int column, uint64_t &PLAYER_BOARD, uint64_t &OTHE
     return true;
 }
 
+bool Connect4::placeBit(Bit *bit, ImVec2 pos, int dir){
+    if(!updateBitboard((int)pos.x)){ // pass column being dropped into
+        return false;
+    } 
+
+    // find lowest empty neighbor in this column
+    if(dir != 0){
+        while(inRange((int)pos.y + dir, 0, _gameOptions.rowY - 1) && getHolderAt((int)pos.x, (int)pos.y + 1).empty()){
+            pos.y += dir;
+        }
+    }
+    
+
+    // update player bitboard
+    BitHolder &neighbor = getHolderAt((int)pos.x, (int)pos.y);
+    bit->setPosition(convertPixelCoords(pos));
+    neighbor.setBit(bit);
+
+    return true;
+}
+
 bool Connect4::actionForEmptyHolder(BitHolder &holder)
 {
-    // TODO: currently, this only works if the player clicks on an empty holder, but i'd like
-    //       for it to work as long as player is hovered over a column with an empty holder
-
     int dir = (holder.empty()) ? 1 : -1;    // look down if holder is empty and up if not
 
     Bit *bit = createPiece(getCurrentPlayer()->playerNumber() == RED_PLAYER ? RED_PIECE : YELLOW_PIECE);
     if (bit) {
         ImVec2 pos = convertToGridCoords(holder.getPosition());
-        if(!updateBitboard((int)pos.x)){ // pass column being dropped into
+
+        if(!placeBit(bit, pos, dir)){   // try to place bit in position
             return false;
         } 
-
-        // find lowest empty neighbor in this column
-        while(inRange((int)pos.y + dir, 0, _gameOptions.rowY - 1) && getHolderAt((int)pos.x, (int)pos.y + 1).empty()){
-            pos.y += dir;
-        }
-
-        // update player bitboard
-        BitHolder &neighbor = getHolderAt((int)pos.x, (int)pos.y);
-        bit->setPosition(convertPixelCoords(pos));
-        neighbor.setBit(bit);
 
         endTurn();
         return true;
@@ -227,12 +236,22 @@ std::string Connect4::stateString() {
 }
 
 void Connect4::setStateString(const std::string &s) {
-    if (s.length() != 32) return;
+    if (s.length() != 42) return;
 
     _grid->setStateString(s);
 
-    // Recreate pieces from state
-    // TODO
+    _grid->forEachSquare([&](ChessSquare* square, int x, int y) {
+        int index = y * _gameOptions.rowX + x;
+        int playerNumber = s[index] - '0';
+        if (playerNumber) {
+            // actionForEmptyHolder(getHolderAt(x, y));
+            Bit *bit = createPiece(playerNumber == RED_PIECE ? RED_PIECE : YELLOW_PIECE);
+            placeBit(bit, ImVec2(x, y), 0);
+            
+        } else {
+            square->setBit( nullptr );
+        }
+    });
 }
 
 //

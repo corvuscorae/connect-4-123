@@ -74,4 +74,5 @@ private:
     bool bitRow(uint64_t board, uint64_t stride, int length);
     bool bitRow(uint64_t board, int length);    // checks for a {length} row in any dir
     bool bitWin(uint64_t board);
+    bool placeBit(Bit *bit, ImVec2 pos, int dir);
 };
