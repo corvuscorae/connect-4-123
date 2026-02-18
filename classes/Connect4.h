@@ -27,6 +27,10 @@ public:
     int         negamax(int depth, int alpha, int beta, int player);
     bool        bitCheckForFullBoard(uint64_t state);
     int         eval(uint64_t myBoard, uint64_t oppBoard);
+    uint64_t    getRowMask(uint64_t board, uint64_t stride, int length);
+    int         countThreats(uint64_t board, int length);
+    int         countBits(uint64_t bits);
+
 
 private:
     bool hasAI = false;
@@ -41,10 +45,10 @@ private:
     static const int YELLOW_PLAYER = 1;
     static const char NULL_PLAYER = '0';
     // define these in class so player can choose which is AI
-    int AI_COLOR;
-    uint64_t *AI_BOARD;
-    int HUMAN_COLOR;
-    uint64_t *HUMAN_BOARD;
+    int         AI_COLOR;
+    uint64_t    *AI_BOARD;
+    int         HUMAN_COLOR;
+    uint64_t    *HUMAN_BOARD;
 
     // Constants for stride types (for checking n-in-a-row)
     const uint64_t HORIZONTAL_STRIDE = 9;

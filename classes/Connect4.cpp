@@ -82,7 +82,7 @@ bool Connect4::updateBitboard(int column){
 bool Connect4::updateBitboard(int column, uint64_t &PLAYER_BOARD, uint64_t &OTHER_BOARD){
     // set up masks
     uint64_t filled = PLAYER_BOARD | OTHER_BOARD;   // all occupied spaces
-    uint64_t col0 = 0x3f;                           // first col (0, 1, 2, 3, 4, 5)
+    uint64_t col0 = 0x3fULL;                           // first col (0, 1, 2, 3, 4, 5)
     uint64_t row0 = 0x40201008040201;               // first row (0, 7, 14, 21, 28, 35, 42)
     uint64_t open = col0 * row0;                    // all open spaces
 
@@ -153,12 +153,21 @@ bool Connect4::bitRow(uint64_t board, int length){
     if(length < 2) return true;
 
     for(size_t i = 0; i < 4; i++){
-        uint64_t stride = ALL_STRIDES[i];
-        uint64_t and2 = board & (board >> stride);
-        uint64_t inRow = and2 & (and2 >> ((length - 2) * stride));
-        if (inRow != 0) return true;
+        if(getRowMask(board, ALL_STRIDES[i], length) != 0){ return true; }
     }
     return false;
+}
+
+uint64_t Connect4::getRowMask(uint64_t board, uint64_t stride, int length){
+    uint64_t and2 = board & (board >> stride);
+    return and2 & (and2 >> ((length - 2) * stride));
+}
+
+int Connect4::countThreats(uint64_t board, int length){
+    int count = 0;
+    for (int i = 0; i < 4; i++)
+        count += countBits(getRowMask(board, ALL_STRIDES[i], length));
+    return count;
 }
 
 // using bit operations
@@ -239,22 +248,35 @@ void Connect4::updateAI()
 }
 
 int Connect4::getNextMove(std::string &state){
-    int bestMove = -1000;
+    std::srand((unsigned int)std::time(0));
+    int bestMove = -WINNING_SCORE * 1000;
     int bestColumn = -1;
+
+    // debug
+    std::string scores = "";
 
     uint64_t red_backup = RED_BOARD;
     uint64_t yellow_backup = YELLOW_BOARD;
     int currentPlayer = (getCurrentPlayer()->playerNumber() == _gameOptions.AIPlayer) ? AI_PLAYER : HUMAN_PLAYER;
 
+    logger->Log("AI evaluating, current player: " + std::to_string(getCurrentPlayer()->playerNumber()), logger->INFO, logger->GAME);
     for(int i = 0; i < _gameOptions.rowX; i++){
         int col = MOVE_ORDER[i];
         if(!updateBitboard(col)){ // no available spaces in this column, move on
+            RED_BOARD = red_backup;
+            YELLOW_BOARD = yellow_backup;
             continue;
         }
 
         int score = -negamax(0, -WINNING_SCORE, WINNING_SCORE, -currentPlayer);
+        scores += std::to_string(score) + ", ";
 
         if(score > bestMove){
+            bestMove = score;
+            bestColumn = col;
+        } 
+        // if equal to bestMove, do a coinflip to update best vals
+        else if (score == bestMove && std::rand() % 10 > 4){
             bestMove = score;
             bestColumn = col;
         }
@@ -267,7 +289,7 @@ int Connect4::getNextMove(std::string &state){
 }
 
 bool Connect4::bitCheckForFullBoard(uint64_t state){
-    uint64_t col0 = 0x3f;                           // first col (0, 1, 2, 3, 4, 5)
+    uint64_t col0 = 0x3fULL;                           // first col (0, 1, 2, 3, 4, 5)
     uint64_t row0 = 0x40201008040201;               // first row (0, 7, 14, 21, 28, 35, 42)
     uint64_t all = col0 * row0;                    // all spaces
 
@@ -277,10 +299,10 @@ bool Connect4::bitCheckForFullBoard(uint64_t state){
     return false;
 }
 
-int countBits(uint64_t board){
+int Connect4::countBits(uint64_t bits){
     int count = 0;
-    while (board) {
-        board &= (board - 1);
+    while (bits) {
+        bits &= (bits - 1);
         count++;
     }
     return count;
@@ -292,39 +314,20 @@ int Connect4::eval(uint64_t myBoard, uint64_t oppBoard){
     
     // my advantage
     // score center bits
-    uint64_t center = 0x3f << (2 * 9);
-    score += countBits(center & myBoard) * 3;
-    center = 0x3f << (3 * 9);   
-    score += countBits(center & myBoard) * 5;    // true center
-    center = 0x3f << (4 * 9);
-    score += countBits(center & myBoard) * 3;
+    uint64_t col2 = 0x3fULL << (2 * 9);
+    uint64_t col3 = 0x3fULL << (3 * 9); // true center
+    uint64_t col4 = 0x3fULL << (4 * 9);
+    score += countBits(col2 & myBoard) * 3;
+    score += countBits(col3 & myBoard) * 5;    
+    score += countBits(col4 & myBoard) * 3;
 
-    // if(bitRow(myBoard, 4)){
-        // score += WINNING_SCORE * 10; // 4 in a row = win!
-    // } 
-    if(bitRow(myBoard, 3)){
-        score += 1000;   // 3 in a row = strong advantage
-    }
-    else if(bitRow(myBoard, 2)){
-        score += 10;    
-    }
-    else {
-        score -= 100;   // punish isolated pieces
-    }
+    // my advantage
+    score += countThreats(myBoard, 3) * 100;
+    score += countThreats(myBoard, 2) * 10;
 
     // opp advantage
-    // if(bitRow(oppBoard, 4)){
-        // score -= WINNING_SCORE * 10;
-    // } 
-    if(bitRow(oppBoard, 3)){
-        score -= 2000;
-    }
-    else if(bitRow(oppBoard, 2)){
-        score -= 100;
-    }
-    else {
-        score += 10;
-    }
+    score -= countThreats(oppBoard, 3) * 120;  // score slightly higher to prefer blocking
+    score -= countThreats(oppBoard, 2) * 15;
 
     return score;
 }
@@ -334,8 +337,8 @@ int Connect4::negamax(int depth, int alpha, int beta, int player){
     uint64_t &oppBoard = player == HUMAN_PLAYER? *AI_BOARD : *HUMAN_BOARD;
 
     // check terminals
-    if(bitWin(myBoard)) return WINNING_SCORE / (1 + depth);
     if(bitWin(oppBoard)) return -(WINNING_SCORE / (1 + depth));
+    if(bitWin(myBoard)) return WINNING_SCORE / (1 + depth);
     if(depth >= MAX_DEPTH) return eval(myBoard, oppBoard);
 
     // check for draw
@@ -354,7 +357,15 @@ int Connect4::negamax(int depth, int alpha, int beta, int player){
     for(int i = 0; i < _gameOptions.rowX; i++){
         int col = MOVE_ORDER[i];
         if(!updateBitboard(col, PLAYER_BOARD, OTHER_BOARD)){ // no available spaces in this column, move on
+            RED_BOARD = red_backup;
+            YELLOW_BOARD = yellow_backup;
             continue;
+        }
+
+        if(bitWin(PLAYER_BOARD)){
+            RED_BOARD = red_backup;
+            YELLOW_BOARD = yellow_backup;
+            return WINNING_SCORE / (1 + depth);  // immediate win, dont need to recurse
         }
 
         int newValue = -negamax(depth + 1, -beta, -alpha, -player);
