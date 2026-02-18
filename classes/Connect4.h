@@ -23,7 +23,7 @@ public:
     void        updateAI() override;
     bool        gameHasAI() override { return _gameOptions.AIPlayer; } // Set to true when AI is implemented
     Grid*       getGrid() override { return _grid; }
-    int         getNextMove(std::string &state);
+    int         getNextMove();
     int         negamax(int depth, int alpha, int beta, int player);
     bool        bitCheckForFullBoard(uint64_t state);
     int         eval(uint64_t myBoard, uint64_t oppBoard);
@@ -44,6 +44,7 @@ private:
     static const int RED_PLAYER = 0;
     static const int YELLOW_PLAYER = 1;
     static const char NULL_PLAYER = '0';
+    
     // define these in class so player can choose which is AI
     int         AI_COLOR;
     uint64_t    *AI_BOARD;
@@ -56,6 +57,15 @@ private:
     const uint64_t DOWNDIAG_STRIDE = HORIZONTAL_STRIDE - 1;
     const uint64_t UPDIAG_STRIDE = HORIZONTAL_STRIDE + 1;
     const uint64_t ALL_STRIDES[4] = {HORIZONTAL_STRIDE, VERTICAL_STRIDE, DOWNDIAG_STRIDE, UPDIAG_STRIDE};
+
+    // bitboard rep of game board
+    uint64_t COL_0 = 0x3fULL;                           // first col (0, 1, 2, 3, 4, 5)
+    uint64_t ROW_0 = 0x40201008040201ULL;               // first row (0, 7, 14, 21, 28, 35, 42)
+    uint64_t ALL_SPACES = COL_0 * ROW_0;       
+    
+    // player bitboards
+    uint64_t RED_BOARD;
+    uint64_t YELLOW_BOARD;
   
     // consts for eval function stuff
     const int MAX_DEPTH = 10; // max search depth
