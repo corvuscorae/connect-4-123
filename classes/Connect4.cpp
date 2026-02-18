@@ -163,10 +163,26 @@ uint64_t Connect4::getRowMask(uint64_t board, uint64_t stride, int length){
     return and2 & (and2 >> ((length - 2) * stride));
 }
 
-int Connect4::countThreats(uint64_t board, int length){
+int Connect4::countThreats(uint64_t me, uint64_t opp, int length){
+    uint64_t col0 = 0x3fULL;            // first col (0, 1, 2, 3, 4, 5)
+    uint64_t row0 = 0x40201008040201;   // first row (0, 7, 14, 21, 28, 35, 42)
+    uint64_t board = col0 * row0;       // all spaces on the board
+
+    // currently empty spaces
+    uint64_t empty = ~(me | opp) & board;
     int count = 0;
-    for (int i = 0; i < 4; i++)
-        count += countBits(getRowMask(board, ALL_STRIDES[i], length));
+    for (int i = 0; i < 4; i++){
+        uint64_t stride = ALL_STRIDES[i];
+
+        // get positions with {length} in a row
+        uint64_t threat = getRowMask(me, stride, length);
+
+        // shift to find where the extension cell would be
+        // counts threats with PLAYABLE extension (can threat complete the stride?)
+        uint64_t extendLeft = (threat >> (length * stride)) & empty;
+        uint64_t extendRight = (threat << (length * stride)) & empty;
+        count += countBits(extendLeft | extendRight);
+    }
     return count;
 }
 
@@ -259,7 +275,6 @@ int Connect4::getNextMove(std::string &state){
     uint64_t yellow_backup = YELLOW_BOARD;
     int currentPlayer = (getCurrentPlayer()->playerNumber() == _gameOptions.AIPlayer) ? AI_PLAYER : HUMAN_PLAYER;
 
-    logger->Log("AI evaluating, current player: " + std::to_string(getCurrentPlayer()->playerNumber()), logger->INFO, logger->GAME);
     for(int i = 0; i < _gameOptions.rowX; i++){
         int col = MOVE_ORDER[i];
         if(!updateBitboard(col)){ // no available spaces in this column, move on
@@ -322,12 +337,12 @@ int Connect4::eval(uint64_t myBoard, uint64_t oppBoard){
     score += countBits(col4 & myBoard) * 3;
 
     // my advantage
-    score += countThreats(myBoard, 3) * 100;
-    score += countThreats(myBoard, 2) * 10;
+    score += countThreats(myBoard, oppBoard, 3) * 100;
+    score += countThreats(myBoard, oppBoard, 2) * 10;
 
     // opp advantage
-    score -= countThreats(oppBoard, 3) * 120;  // score slightly higher to prefer blocking
-    score -= countThreats(oppBoard, 2) * 15;
+    score -= countThreats(oppBoard, myBoard, 3) * 150;  // score slightly higher to prefer blocking
+    score -= countThreats(oppBoard, myBoard, 2) * 20;
 
     return score;
 }

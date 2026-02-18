@@ -28,7 +28,7 @@ public:
     bool        bitCheckForFullBoard(uint64_t state);
     int         eval(uint64_t myBoard, uint64_t oppBoard);
     uint64_t    getRowMask(uint64_t board, uint64_t stride, int length);
-    int         countThreats(uint64_t board, int length);
+    int         countThreats(uint64_t me, uint64_t opp, int length);
     int         countBits(uint64_t bits);
 
 
